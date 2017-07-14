@@ -1,0 +1,104 @@
+One-time passwords are used for a variety of internet services in order to
+enhance security.  These generally involve the provisioning of a shared 
+secret to a client and using a formula on both the client side and the
+server side to validate possession of the secret.  
+
+The Initiative for Open Authentication (OATH) is an industry group focused on
+creating standards and a reference architecture for strong authentication)[1].
+Their Hashed One-Time Password (HOTP) algorithm has become the industry
+standard, and uses a truncated version of the HMAC-SHA-1 algorithm combining
+the shared secret (as the key), and a counter.[2]  A sliding window is used to
+verify synchronization.  Later variants utilized a monotonic clock instead of
+a counter.[3]
+
+In it's generalized form, OATH HOTP  can be represented as 
+HOTP(K,C) = Truncate(HMAC-SHA-1(K,C))
+where K is the shared secret, C is a shared self-incrementing counter, and 
+HMAC-SHA1 is a Hashed Message Authentication Code(HMAC) utilizing the SHA1
+algorithm.
+
+HMAC is described in RFC 2104, and is an extension to a typical one-way
+cryptographic hash.  It is designed to securely combine a key with a
+message to be authenticated, and to address issues that some cryptographic
+functions have with length extension attacks. [4]
+
+Cryptographic hashes (such as SHA-1) are irreversable (one-way) compression
+functions, reducing an arbitrary input to a deterministic output.  This subset
+of hash functions have properties beneficial for security applications,
+including pseudorandomness (where the outcome satisfies statistical tests for
+randomness), avalanche effects (where flipping one bit of the input will 
+typically flip half or more of the outputs), and collision resistance 
+(finding two differing inputs with identical hash values should be difficult).
+
+Many hash functions are cumulative, making it possible to add additional
+data to the end of a hash (if it is a multiple of the cryptographc block 
+size) without knowing the data comprising the hash.  This introduces
+significant vulnerabilities in messages where increased length is valid,
+such as HTML documents (which would permit an attacker to add javascript
+to the end of the document and produce a valid authentication code).
+
+To mitigate this attack, the key is truncated to the blocksize of the
+underlying cryptographic block function, and zero-padded as needed to ensure
+that the key is a multiple of the blocksize.  An inner padding is created
+with a value of [0x36*blocksize], and XORed with the key.  The message is
+concatenated with this padding, then hashed.  An outer padding is created
+with a value of [0x5c*blocksize], and XOed with the key.  The inner hash
+is concatenated to this outer hash, then hashed again.
+
+The generalized form of HMAC can be written as 
+  HMAC(key, message) = Hash((key XOR opad) || Hash((key XOR ipad) || message))
+where || denotes concatenation
+
+This extension of the underlying hash function serves to protect against
+other flaws and vulnerabilities in the underlying hash function.  As such,
+recent attacks against MD5 (such as the ability to create collisions 
+relatively easily) tend not to affect HMAC.  As the hash includes the body
+of the message in addition to the key, it significantly reduces the
+possibility of precomputed tables (such as rainbow tables) being used in
+most common scenarios.  Deviation from the underlying hashes does introduce
+some artifacts, and has been shown to introduce identifying artifacts.[5]
+
+The use of 0x36 and 0x5c were arbitrarily chosen as their values do not affect
+the security of the HMAC function, as a Pseudo-Random Function, provided that
+the values differ, and the underlying function is at least weakly resistent
+to collisions.[1]  When that was demonstrated not to be the case with MD5,
+a second proof was published which analyzed the security of HMAC without the
+assumption of collision resistence, proving that HMAC is a PRF under the sole
+condition that the underlying hash function is itself pseudorandom.[6]
+
+OATH HOTP provides a conveinent, secure One-Time Password that is easy for
+users to adopt.  By truncating the HMAC down to 6 or 8 digits, One-Time
+Passwords are able to be easily typed into any computer.  The use of a counter
+protects against replay attacks (as the server will reject any OTP derived
+using a counter earlier than it's own counter.  A sliding window helps avoid
+synchronization issues; when an OTP needs to be validated, the server
+calculates an OTP using the shared secret and the expected counter value.  If
+the OTP does not match, the counter is incremented and a new OTP generated for
+comparison.  This is repeated for as many counter values as the window permits.
+
+This implementation permits a shared key of a size up to and including the
+SHA-1 block size (160 bit).  In accordance with the recommendations in RFC4226,
+the minimum size that this implementation will accept is 128 bits.  Per the
+standard, the size of the counter is 64 bits (8 bytes).
+
+[1] Wikipedia contributors. "Initiative For Open Authentication." Wikipedia, 
+The Free Encyclopedia. Wikipedia, The Free Encyclopedia, 1 Jun. 2017. Web.
+14 Jul. 2017
+
+[2] M'raihi, D., et al. Hotp: An hmac-based one-time password algorithm. No. 
+RFC 4226. 2005.
+
+[3] M'Raihi, David, et al. Totp: Time-based one-time password algorithm. No.
+RFC 6238. 2011.
+
+[4] Bellare, Mihir, Ran Canetti, and Hugo Krawczyk. "Keying hash functions 
+for message authentication." Crypto. Vol. 96. 1996.
+
+[5] Kim, Jongsung, et al. "On the Security of HMAC and NMAC Based on HAVAL, 
+MD4, MD5, SHA-0 and SHA-1 (Extended Abstract)." Security and Cryptography 
+for Networks: 5th International Conference, SCN 2006, Maiori, Italy, 
+September 6-8, 2006, Proceedings. Vol. 4116. Springer, 2006.
+
+[6] Bellare, Mihir. "New proofs for NMAC and HMAC: Security without 
+collision-resistance." Annual International Cryptology Conference. Springer,
+Berlin, Heidelberg, 2006.
